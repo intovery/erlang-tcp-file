@@ -27,18 +27,48 @@ echo_loop(Connection, SerialNo) ->
             Data_regex = re:replace(Data, "\r\n", "", [global, {return, list}]),
             io:format("serialNo:~p, connection:~p, received:~p~n",[SerialNo, Connection, Data_regex]),
             Tokens = string:tokens(Data_regex, " "),
-            io:format("~p~n", [Tokens]),
-            case lists:nth(1, Tokens) of
-                "file" -> 
-                    Filename = lists:nth(2, Tokens),
-                    case file:read_file(Filename) of
+            io:format("tokens:~p~n",[Tokens]),
+            case proc(Tokens) of
+                {read_file, Filename, Result} ->
+                    case Result of
                         {ok, Binary} -> gen_tcp:send(Connection, erlang:binary_to_list(Binary));
-                        _ -> gen_tcp:send(Connection, io_lib:format("failed to read file ~p\r\n",[Filename]))
+                        _ -> gen_tcp:send(Connection, io_lib:format("failed. cannot read file ~p\r\n",[Filename]))
                     end;
-                _ -> 
-                    gen_tcp:send(Connection, Data)
+                {echo} -> 
+                    gen_tcp:send(Connection, Data);
+                {error, Reason} ->
+                    gen_tcp:send(Connection, io_lib:format("failed. ~p\r\n",[Reason]));
+                _ ->
+                    gen_tcp:send(Connection, io_lib:format("failed. unknown error with data ~p\r\n",[Data]))
             end,
 	        echo_loop(Connection, SerialNo + 1);
 	    {tcp_closed, Connection} ->
 	        io:format("Connection closed ~p~n", [Connection])
+    end.
+
+proc(Input) ->
+    proc(Input, {}, 0).
+
+proc([], Status, Depth) ->
+    io:format("depth:~p, final status:~p~n",[Depth, Status]),
+    case Status of
+        {read_file, Filename} ->
+            {read_file, Filename, file:read_file(Filename)};
+        {read_file} ->
+            {error, need_more_args};
+        {echo} ->
+            {echo};
+        _ ->
+            {error, wrong_input, Status}
+    end;
+proc([H | T], Status, Depth) ->
+    io:format("depth:~p, current token:~p, current status:~p~n",[Depth, H, Status]),
+    case Status of
+        {read_file} ->  
+            proc(T, {read_file, H}, Depth + 1);
+        _ ->
+            case H of
+                "file" -> proc(T, {read_file}, Depth + 1);
+                _ -> proc(T, {echo}, Depth + 1)
+            end
     end.
