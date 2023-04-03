@@ -29,11 +29,17 @@ echo_loop(Connection, SerialNo) ->
             Tokens = string:tokens(Data_regex, " "),
             io:format("tokens:~p~n",[Tokens]),
             case proc(Tokens) of
-                {read_file, Filename, Result} ->
-                    case Result of
-                        {ok, Binary} -> gen_tcp:send(Connection, erlang:binary_to_list(Binary));
-                        _ -> gen_tcp:send(Connection, io_lib:format("failed. cannot read file ~p\r\n",[Filename]))
-                    end;
+                {read_file, FileResultList} ->
+                    % case Result of
+                    %     {ok, Binary} -> gen_tcp:send(Connection, erlang:binary_to_list(Binary));
+                    %     _ -> gen_tcp:send(Connection, io_lib:format("failed. cannot read file ~p\r\n",[Filename]))
+                    % end;
+                    lists:foreach(fun({Filename, Result}) ->
+                        case Result of
+                            {ok, Binary} -> gen_tcp:send(Connection, erlang:binary_to_list(Binary));
+                            _ -> gen_tcp:send(Connection, io_lib:format("failed. cannot read file ~p\r\n",[Filename]))
+                        end
+                    end, FileResultList);
                 {echo} -> 
                     gen_tcp:send(Connection, Data);
                 {error, Reason} ->
@@ -52,8 +58,9 @@ proc(Input) ->
 proc([], Status, Depth) ->
     io:format("depth:~p, final status:~p~n",[Depth, Status]),
     case Status of
-        {read_file, Filename} ->
-            {read_file, Filename, file:read_file(Filename)};
+        {read_file, FilenameList} ->
+            {read_file, lists:map(
+                fun(Filename) -> { Filename, file:read_file(Filename) } end, FilenameList)};
         {read_file} ->
             {error, need_more_args};
         {echo} ->
@@ -65,7 +72,9 @@ proc([H | T], Status, Depth) ->
     io:format("depth:~p, current token:~p, current status:~p~n",[Depth, H, Status]),
     case Status of
         {read_file} ->  
-            proc(T, {read_file, H}, Depth + 1);
+            proc(T, {read_file, [H]}, Depth + 1);
+        {read_file, L} ->
+            proc(T, {read_file, [H | L]}, Depth + 1);
         _ ->
             case H of
                 "file" -> proc(T, {read_file}, Depth + 1);
