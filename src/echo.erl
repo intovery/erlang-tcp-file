@@ -30,10 +30,6 @@ echo_loop(Connection, SerialNo) ->
             io:format("tokens:~p~n",[Tokens]),
             case proc(Tokens) of
                 {read_file, FileResultList} ->
-                    % case Result of
-                    %     {ok, Binary} -> gen_tcp:send(Connection, erlang:binary_to_list(Binary));
-                    %     _ -> gen_tcp:send(Connection, io_lib:format("failed. cannot read file ~p\r\n",[Filename]))
-                    % end;
                     lists:foreach(fun({Filename, Result}) ->
                         case Result of
                             {ok, Binary} -> gen_tcp:send(Connection, erlang:binary_to_list(Binary));
