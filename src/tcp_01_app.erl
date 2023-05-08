@@ -11,7 +11,7 @@
 
 start(_StartType, [Port]) when is_integer(Port) ->
     io:format("~p~n", [Port]),
-    _Pid = spawn_link(echo, accept, [28201]),
+    _Pid = spawn_link(echo, accept, [Port]),
     tcp_01_sup:start_link();
 
 start(_startType, WrongArgs) ->
